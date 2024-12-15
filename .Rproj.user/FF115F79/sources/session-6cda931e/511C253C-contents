@@ -1,0 +1,84 @@
+plot_sample_quality_boxplot <- function(data_matrix, 
+                                        groups = NULL,
+                                        title = "Sample Quality Distribution",
+                                        xlab = "Samples",
+                                        ylab = "Values",
+                                        rotate_labels = TRUE,
+                                        point_size = 1,
+                                        box_width = 0.7,
+                                        colors = NULL,
+                                        outlier_shape = 16,
+                                        outlier_size = 2) {
+  # 加载必要的包
+  require(ggplot2)
+  require(reshape2)
+  
+  # 数据预处理
+  # 确保输入是矩阵或数据框
+  if (!is.matrix(data_matrix) && !is.data.frame(data_matrix)) {
+    stop("Input data must be a matrix or data frame")
+  }
+  
+  # 将数据转换为长格式
+  melted_data <- melt(data_matrix)
+  colnames(melted_data) <- c("Feature", "Sample", "Value")
+  
+  # 设置默认颜色
+  if (is.null(colors)) {
+    if (!is.null(groups)) {
+      colors <- rainbow(length(unique(groups)))
+    } else {
+      colors <- "steelblue"
+    }
+  }
+  
+  # 创建基础图形
+  p <- ggplot(melted_data, aes(x = Sample, y = Value)) +
+    geom_boxplot(width = box_width, 
+                 outlier.shape = outlier_shape,
+                 outlier.size = outlier_size,
+                 aes(fill = if(!is.null(groups)) groups[as.numeric(as.factor(Sample))] else NULL)) +
+    theme_bw() +
+    labs(title = title,
+         x = xlab,
+         y = ylab) +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14),
+      axis.text.x = element_text(angle = if(rotate_labels) 45 else 0,
+                                 hjust = if(rotate_labels) 1 else 0.5),
+      axis.title = element_text(size = 12),
+      legend.title = element_text(size = 10),
+      legend.text = element_text(size = 9)
+    )
+  
+  # 如果提供了分组信息，添加颜色
+  if (!is.null(groups)) {
+    p <- p + scale_fill_manual(values = colors, name = "Groups")
+  } else {
+    p <- p + scale_fill_manual(values = colors)
+  }
+  
+  return(p)
+}
+
+
+# 生成示例数据
+set.seed(123)
+n_samples <- 10
+n_features <- 1000
+data_matrix <- matrix(rnorm(n_samples * n_features), ncol = n_samples)
+colnames(data_matrix) <- paste0("Sample_", 1:n_samples)
+
+# 基本使用
+p1 <- plot_sample_quality_boxplot(data_matrix)
+print(p1)
+
+# 使用分组信息
+groups <- rep(c("Control", "Treatment"), each = 5)
+p2 <- plot_sample_quality_boxplot(data_matrix,
+                                  groups = groups,
+                                  title = "Expression Distribution by Group",
+                                  xlab = "Sample ID",
+                                  ylab = "Expression Value",
+                                  colors = c("lightblue", "pink"))
+print(p2)
