@@ -25,6 +25,10 @@ If NULL (default), all groups in the data will be used.}
 \item{point_size}{Numeric, size of points in the plot (default: 3)}
 
 \item{top_n_vars}{Numeric, number of top contributing variables to show (default: 5, 0 for no variables)}
+
+\item{ellipse_alpha}{Numeric, transparency of confidence ellipses (default: 0.2)}
+
+\item{ellipse_level}{Numeric, confidence level for ellipses (default: 0.95)}
 }
 \value{
 A ggplot object containing the combined PCA plot

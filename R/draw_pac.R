@@ -15,6 +15,8 @@
 #' @param show_stats Logical, whether to show PERMANOVA results (default: TRUE)
 #' @param point_size Numeric, size of points in the plot (default: 3)
 #' @param top_n_vars Numeric, number of top contributing variables to show (default: 5, 0 for no variables)
+#' @param ellipse_alpha Numeric, transparency of confidence ellipses (default: 0.2)
+#' @param ellipse_level Numeric, confidence level for ellipses (default: 0.95)
 #'
 #' @return A ggplot object containing the combined PCA plot
 #' @export
@@ -69,7 +71,34 @@ draw_pca <- function(df, var_names = NULL, Group = NULL, group_labels = NULL,
                     y_limits = NULL,
                     show_stats = TRUE,
                     point_size = 3,
-                    top_n_vars = 5) {
+                    top_n_vars = 5,
+                    ellipse_alpha = 0.2,
+                    ellipse_level = 0.95) {
+  
+  # Input validation
+  if (!is.data.frame(df)) {
+    stop("'df' must be a data frame")
+  }
+  
+  if (!all(c("Group", "SampleID") %in% colnames(df))) {
+    stop("Data frame must contain 'Group' and 'SampleID' columns")
+  }
+  
+  if (!is.numeric(point_size) || point_size <= 0) {
+    stop("'point_size' must be a positive number")
+  }
+  
+  if (!is.numeric(top_n_vars) || top_n_vars < 0) {
+    stop("'top_n_vars' must be a non-negative number")
+  }
+  
+  if (!is.numeric(ellipse_alpha) || ellipse_alpha < 0 || ellipse_alpha > 1) {
+    stop("'ellipse_alpha' must be between 0 and 1")
+  }
+  
+  if (!is.numeric(ellipse_level) || ellipse_level <= 0 || ellipse_level >= 1) {
+    stop("'ellipse_level' must be between 0 and 1")
+  }
   
   # If Group is NULL, use all groups in the data
   if(is.null(Group)) {
@@ -97,8 +126,8 @@ draw_pca <- function(df, var_names = NULL, Group = NULL, group_labels = NULL,
   
   # Auto-generate colors if not specified
   if(is.null(colors)) {
-    colors <- grDevices::colorRampPalette(c("#1F77B4FF", "#FF7F0EFF", "#2CA02CFF", 
-                                "#D62728FF", "#9467BDFF"))(length(Group))
+    default_colors <- c("#1F77B4FF", "#FF7F0EFF", "#2CA02CFF", "#D62728FF", "#9467BDFF")
+    colors <- grDevices::colorRampPalette(default_colors)(length(Group))
   }
   
   # Process group labels
@@ -106,23 +135,21 @@ draw_pca <- function(df, var_names = NULL, Group = NULL, group_labels = NULL,
     if(length(group_labels) != length(Group)) {
       stop("Number of group labels must match number of groups")
     }
-    df$Group <- factor(df$Group, 
-                      levels = Group,
-                      labels = group_labels)
+    df$Group <- factor(df$Group, levels = Group, labels = group_labels)
   } else {
     df$Group <- factor(df$Group, levels = Group)
   }
   
   # Perform PCA analysis
-  pca <- summary(vegan::rda(dplyr::select(df, dplyr::all_of(var_names)), scale=T))
+  pca_result <- summary(vegan::rda(dplyr::select(df, dplyr::all_of(var_names)), scale=T))
   
   # Extract sample coordinates
-  sites <- data.frame(pca$sites) %>%
+  sample_coords <- data.frame(pca_result$sites) %>%
     dplyr::mutate(Group = df$Group)
   
   # Calculate data ranges and set plot limits
-  x_range <- range(sites$PC1)
-  y_range <- range(sites$PC2)
+  x_range <- range(sample_coords$PC1)
+  y_range <- range(sample_coords$PC2)
   
   if(is.null(x_limits)) {
     x_margin <- diff(x_range) * 0.2
@@ -134,15 +161,15 @@ draw_pca <- function(df, var_names = NULL, Group = NULL, group_labels = NULL,
   }
   
   # Extract and process species scores
-  species <- data.frame(pca$species) %>%
-    dplyr::mutate(func = factor(rownames(pca$species), 
-                        levels = var_names,
-                        labels = var_names))
+  species_scores <- data.frame(pca_result$species) %>%
+    dplyr::mutate(func = factor(rownames(pca_result$species), 
+                               levels = var_names,
+                               labels = var_names))
   
   # Calculate variable contributions
   var_contrib <- data.frame(
     var = var_names,
-    contrib = sqrt(species$PC1^2 + species$PC2^2)
+    contrib = sqrt(species_scores$PC1^2 + species_scores$PC2^2)
   ) %>%
     dplyr::arrange(dplyr::desc(contrib)) %>%
     dplyr::mutate(rank = dplyr::row_number())
@@ -150,20 +177,22 @@ draw_pca <- function(df, var_names = NULL, Group = NULL, group_labels = NULL,
   # Filter top contributing variables
   if(top_n_vars > 0) {
     top_vars <- var_contrib$var[1:min(top_n_vars, nrow(var_contrib))]
-    species_filtered <- species %>%
+    species_filtered <- species_scores %>%
       dplyr::filter(func %in% top_vars)
   }
   
   # Perform PERMANOVA analysis
   adonis_result <- vegan::adonis2(vegan::vegdist(dplyr::select(df, dplyr::all_of(var_names)), 
-                                  method="bray") ~ Group, data=df)
+                                                method="bray") ~ Group, data=df)
   
   # Calculate confidence ellipses
   ellipse_data <- lapply(levels(df$Group), function(grp) {
-    subset <- dplyr::filter(sites, Group == grp)
+    subset <- dplyr::filter(sample_coords, Group == grp)
     mean_data <- colMeans(subset[, c("PC1", "PC2")])
     cov_matrix <- stats::cov(subset[, c("PC1", "PC2")])
-    ellipse_points <- ellipse::ellipse(cov_matrix, centre = mean_data, level = 0.95)
+    ellipse_points <- ellipse::ellipse(cov_matrix, 
+                                     centre = mean_data, 
+                                     level = ellipse_level)
     data.frame(Group = grp, ellipse_points)
   })
   ellipse_data <- do.call(rbind, ellipse_data)
@@ -173,134 +202,140 @@ draw_pca <- function(df, var_names = NULL, Group = NULL, group_labels = NULL,
   annotation_y <- y_limits[2]
   
   # Create main PCA plot
-  p1 <- ggplot2::ggplot() +
-    ggplot2::geom_point(data = sites, 
-               ggplot2::aes(x = PC1, y = PC2, fill = Group), 
-               size = point_size, color = "transparent", shape = 21)
+  main_plot <- ggplot2::ggplot() +
+    ggplot2::geom_point(data = sample_coords, 
+                        ggplot2::aes(x = PC1, y = PC2, fill = Group), 
+                        size = point_size, color = "transparent", shape = 21)
   
   # Add variable arrows and labels if requested
   if(top_n_vars > 0) {
-    p1 <- p1 +
+    main_plot <- main_plot +
       ggplot2::geom_segment(data = species_filtered, 
-                  ggplot2::aes(x = 0, y = 0, xend = -1.25 * PC1, 
-                      yend = 1.25 * PC2),
-                  arrow = ggplot2::arrow(angle = 22.5, 
-                                       length = ggplot2::unit(0.25, "cm"), 
-                                       type = "closed")) +
+                           ggplot2::aes(x = 0, y = 0, xend = -1.25 * PC1, 
+                                      yend = 1.25 * PC2),
+                           arrow = ggplot2::arrow(angle = 22.5, 
+                                                length = ggplot2::unit(0.25, "cm"), 
+                                                type = "closed")) +
       ggrepel::geom_text_repel(data = species_filtered, 
-                      ggplot2::aes(x = -1.275 * PC1, y = 1.275 * PC2, 
-                          label = func), 
-                      size = 3.8)
+                              ggplot2::aes(x = -1.275 * PC1, y = 1.275 * PC2, 
+                                         label = func), 
+                              size = 3.8)
   }
   
   # Add plot elements
-  p1 <- p1 +
+  main_plot <- main_plot +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "grey") +
     ggplot2::geom_vline(xintercept = 0, linetype = "dashed", color = "grey") +
-    ggplot2::geom_path(data = ellipse_data, 
-              ggplot2::aes(x = PC1, y = PC2, group = Group, 
-                  color = Group),
-              show.legend = FALSE, linetype = "dashed") +
     ggplot2::geom_polygon(data = ellipse_data,
-                ggplot2::aes(x = PC1, y = PC2, group = Group, 
-                    fill = Group),
-                alpha = 0.2) +
-    ggplot2::scale_color_manual(values = colors) +
+                         ggplot2::aes(x = PC1, y = PC2, group = Group, 
+                                    fill = Group),
+                         alpha = ellipse_alpha) +
+    ggplot2::geom_path(data = ellipse_data, 
+                       ggplot2::aes(x = PC1, y = PC2, group = Group), 
+                       color = rep(colors, each = 100),
+                       linetype = "dashed") +
     ggplot2::scale_fill_manual(values = colors) +
-    ggplot2::labs(x = sprintf("PC1 (%.2f%%)", pca$cont$importance[2,1] * 100),
-         y = sprintf("PC2 (%.2f%%)", pca$cont$importance[2,2] * 100)) +
+    ggplot2::labs(x = sprintf("PC1 (%.2f%%)", pca_result$cont$importance[2,1] * 100),
+                  y = sprintf("PC2 (%.2f%%)", pca_result$cont$importance[2,2] * 100)) +
     ggplot2::scale_x_continuous(limits = x_limits) +
     ggplot2::scale_y_continuous(limits = y_limits) +
     ggpubr::theme_classic2() +
     ggplot2::theme(legend.title = ggplot2::element_blank(),
-          axis.line = ggplot2::element_line(color = "black"),
-          axis.ticks = ggplot2::element_blank())
+                   axis.line = ggplot2::element_line(color = "black"),
+                   axis.ticks = ggplot2::element_blank())
   
   # Add PERMANOVA results if requested
   if(show_stats) {
-    p1 <- p1 + 
+    main_plot <- main_plot + 
       ggplot2::annotate("text", 
-               label = sprintf("PERMANOVA\nR^2 = %.3f\np = %.3f", 
-                             adonis_result$R2[1], 
-                             adonis_result$`Pr(>F)`[1]),
-               x = annotation_x,
-               y = annotation_y,
-               size = 3.5,
-               hjust = 1,
-               vjust = 1)
+                       label = sprintf("PERMANOVA\nR^2 = %.3f\np = %.3f", 
+                                     adonis_result$R2[1], 
+                                     adonis_result$`Pr(>F)`[1]),
+                       x = annotation_x,
+                       y = annotation_y,
+                       size = 3.5,
+                       hjust = 1,
+                       vjust = 1)
   }
   
   # Extract legend and create legend-free version
-  legend <- ggpubr::get_legend(p1)
-  p11 <- p1 + ggplot2::theme(legend.position = "none")
+  legend <- ggpubr::get_legend(main_plot)
+  main_plot_no_legend <- main_plot + ggplot2::theme(legend.position = "none")
   
   # Create density plots
-  p2 <- ggplot2::ggplot(data = sites) +
-    ggplot2::geom_density(ggplot2::aes(x = PC1, fill = Group), alpha = 0.2,
-                 color = 'black', position = 'identity', show.legend = FALSE) +
+  density_plot_x <- ggplot2::ggplot(data = sample_coords) +
+    ggplot2::geom_density(ggplot2::aes(x = PC1, fill = Group), 
+                         alpha = ellipse_alpha,
+                         color = 'black', 
+                         position = 'identity', 
+                         show.legend = FALSE) +
     ggplot2::scale_fill_manual(values=colors) +
     ggplot2::scale_x_continuous(limits = x_limits) +
     ggplot2::theme_classic() +
     ggplot2::theme(legend.title = ggplot2::element_blank(),
-          axis.title = ggplot2::element_blank(),
-          axis.text = ggplot2::element_blank(),
-          axis.ticks = ggplot2::element_blank())
+                   axis.title = ggplot2::element_blank(),
+                   axis.text = ggplot2::element_blank(),
+                   axis.ticks = ggplot2::element_blank())
   
-  p3 <- ggplot2::ggplot(data = sites) +
-    ggplot2::geom_density(ggplot2::aes(x = PC2, fill = Group), alpha = 0.2,
-                 color = 'black', position = 'identity', show.legend = FALSE) +
+  density_plot_y <- ggplot2::ggplot(data = sample_coords) +
+    ggplot2::geom_density(ggplot2::aes(x = PC2, fill = Group), 
+                         alpha = ellipse_alpha,
+                         color = 'black', 
+                         position = 'identity', 
+                         show.legend = FALSE) +
     ggplot2::scale_fill_manual(values=colors) +
     ggplot2::scale_x_continuous(limits = y_limits) +
     ggplot2::theme_classic() +
     ggplot2::theme(legend.title = ggplot2::element_blank(),
-          axis.title = ggplot2::element_blank(),
-          axis.text = ggplot2::element_blank(),
-          axis.ticks = ggplot2::element_blank()) +
+                   axis.title = ggplot2::element_blank(),
+                   axis.text = ggplot2::element_blank(),
+                   axis.ticks = ggplot2::element_blank()) +
     ggplot2::coord_flip()
   
   # Prepare data for box plots
   pca_data <- data.frame(
-    PC1 = sites$PC1,
-    PC2 = sites$PC2,
-    group = sites$Group
+    PC1 = sample_coords$PC1,
+    PC2 = sample_coords$PC2,
+    group = sample_coords$Group
   )
   
   # Generate pairwise comparisons
-  my_comparisons <- utils::combn(levels(df$Group), 2, simplify = FALSE)
+  pairwise_comparisons <- utils::combn(levels(df$Group), 2, simplify = FALSE)
   
   # Create box plots
-  p4 <- ggplot2::ggplot(pca_data, ggplot2::aes(x = group, y = PC1, 
-                                 colour = group)) +
+  boxplot_x <- ggplot2::ggplot(pca_data, ggplot2::aes(x = group, y = PC1, 
+                                                      colour = group)) +
     ggplot2::geom_boxplot(outlier.shape = NA) +
     ggplot2::theme_minimal() +
     ggplot2::theme(panel.grid = ggplot2::element_blank(),
-          axis.text = ggplot2::element_blank(),
-          legend.position = "none",
-          axis.ticks = ggplot2::element_blank()) +
+                   axis.text = ggplot2::element_blank(),
+                   legend.position = "none",
+                   axis.ticks = ggplot2::element_blank()) +
     ggplot2::scale_color_manual(values = colors) +
     ggplot2::xlab("") + ggplot2::ylab("") +
     ggplot2::coord_flip() +
-    ggpubr::stat_compare_means(comparisons = my_comparisons, label = "p.signif")
+    ggpubr::stat_compare_means(comparisons = pairwise_comparisons, label = "p.signif")
   
-  p5 <- ggplot2::ggplot(pca_data, ggplot2::aes(x = group, y = PC2, 
-                                 colour = group)) +
+  boxplot_y <- ggplot2::ggplot(pca_data, ggplot2::aes(x = group, y = PC2, 
+                                                      colour = group)) +
     ggplot2::geom_boxplot(outlier.shape = NA) +
     ggplot2::theme_minimal() +
     ggplot2::theme(panel.grid = ggplot2::element_blank(),
-          axis.text = ggplot2::element_blank(),
-          legend.position = "none",
-          axis.ticks = ggplot2::element_blank()) +
+                   axis.text = ggplot2::element_blank(),
+                   legend.position = "none",
+                   axis.ticks = ggplot2::element_blank()) +
     ggplot2::scale_color_manual(values = colors) +
     ggplot2::xlab("") + ggplot2::ylab("") +
-    ggpubr::stat_compare_means(comparisons = my_comparisons, label = "p.signif")
+    ggpubr::stat_compare_means(comparisons = pairwise_comparisons, label = "p.signif")
   
   # Combine all plots using patchwork
   design <- "166
             266
             345"
   
-  p <- p4 + p2 + p11 + p3 + p5 + legend + 
+  combined_plot <- boxplot_x + density_plot_x + main_plot_no_legend + 
+    density_plot_y + boxplot_y + legend + 
     patchwork::plot_layout(design = design, widths=c(5,1,1), heights=c(1,1,5))
   
-  return(p)
+  return(combined_plot)
 }

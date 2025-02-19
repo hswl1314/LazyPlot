@@ -1,8 +1,8 @@
 Package: LazyPlot
 Title: Easy Tools for Data Transformation and Plotting
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: 
-    person("Dr. Liang", 
+    person("Dr.", "Liang", 
            email = "lwlisme2022@163.com",
            role = c("aut", "cre"))
 Description: Provides a collection of functions for easy data transformation 
