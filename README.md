@@ -21,7 +21,45 @@ You can install LazyPlot from GitHub using:
 
 # install.packages("devtools")
 
-`r
+```r
 devtools::install_github("hswl1314/LazyPlot")
-`
+```
+
+## Usage
+
+### Basic PCA Plot
+```r
+library(LazyPlot)
+```
+
+# Create example data
+```r
+set.seed(123)
+example_data <- data.frame(
+SampleID = paste0("Sample_", 1:30),
+Group = rep(c("Control", "Treatment"), each = 15),
+Var1 = c(rnorm(15, mean = 10, sd = 2), rnorm(15, mean = 12, sd = 2)),
+Var2 = c(rnorm(15, mean = 15, sd = 3), rnorm(15, mean = 18, sd = 3)),
+Var3 = c(rnorm(15, mean = 5, sd = 1), rnorm(15, mean = 7, sd = 1))
+)
+```
+
+# Create PCA plot
+```r
+draw_pca(example_data)
+```
+
+### Customized PCA Plot
+```r
+Customize plot appearance
+draw_pca(
+df = example_data,
+colors = c("#1F77B4", "#FF7F0E"),
+point_size = 4,
+top_n_vars = 3,
+ellipse_alpha = 0.3,
+show_stats = TRUE
+)
+```
+
 
