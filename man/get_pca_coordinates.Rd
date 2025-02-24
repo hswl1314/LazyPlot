@@ -2,37 +2,38 @@
 % Please edit documentation in R/get_pca_coordinates.R
 \name{get_pca_coordinates}
 \alias{get_pca_coordinates}
-\title{Perform PCA Analysis and Get Coordinates}
+\title{Extract PCA Coordinates}
 \usage{
 get_pca_coordinates(df, var_names = NULL, Group = NULL)
 }
 \arguments{
-\item{df}{A data frame containing the input data. Must have 'Group' and 'SampleID' columns.}
+\item{df}{A data frame containing the variables for PCA analysis}
 
-\item{var_names}{Optional vector of variable names to use for PCA. If NULL, all numeric columns except 'Group' and 'SampleID' are used.}
+\item{var_names}{Optional character vector specifying the names of variables to be used in PCA.
+If NULL, all numeric columns except 'Group' and 'SampleID' will be used.}
 
-\item{Group}{Optional vector of group names to include in the analysis. If NULL, all groups are used.}
+\item{Group}{Optional character vector specifying the levels of groups.
+If NULL (default), all groups in the data will be used.}
 }
 \value{
 A list containing:
-\item{coordinates}{Data frame with PCA coordinates for each sample}
-\item{variance}{Vector of explained variance for each principal component}
-\item{loadings}{Matrix of variable loadings}
-\item{adonis}{Results of PERMANOVA analysis}
+- coordinates: Data frame with sample coordinates (PC1, PC2, PC3) and group information
+- variance: Vector with explained variance for PC1, PC2 and PC3
+- loadings: Data frame with variable loadings
+- adonis: PERMANOVA test results
 }
 \description{
-This function performs Principal Component Analysis (PCA) on the input data
-and returns the PCA coordinates along with additional information.
+Extracts PCA coordinates and related information from multivariate data
 }
 \examples{
 # Create example data
 set.seed(123)
 example_data <- data.frame(
   SampleID = paste0("Sample_", 1:30),
-  Group = rep(c("Control", "Treatment1", "Treatment2"), each = 10),
-  Var1 = rnorm(30, mean = 10, sd = 2),
-  Var2 = rnorm(30, mean = 15, sd = 3),
-  Var3 = rnorm(30, mean = 5, sd = 1)
+  Group = rep(c("Group1", "Group2"), each = 15),
+  Var1 = c(rnorm(15, mean = 10, sd = 2), rnorm(15, mean = 12, sd = 2)),
+  Var2 = c(rnorm(15, mean = 15, sd = 3), rnorm(15, mean = 18, sd = 3)),
+  Var3 = c(rnorm(15, mean = 5, sd = 1), rnorm(15, mean = 7, sd = 1))
 )
 
 # Run PCA analysis with all variables
@@ -48,7 +49,7 @@ pca_results$adonis          # View PERMANOVA results
 pca_results2 <- get_pca_coordinates(
   df = example_data,
   var_names = c("Var1", "Var2"),
-  Group = c("Control", "Treatment1")
+  Group = c("Group1", "Group2")
 )
 
 }

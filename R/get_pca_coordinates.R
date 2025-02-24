@@ -1,31 +1,32 @@
-#' Perform PCA Analysis and Get Coordinates
+#' @title Extract PCA Coordinates
+#' @name get_pca_coordinates
+#' @description Extracts PCA coordinates and related information from multivariate data
 #'
-#' This function performs Principal Component Analysis (PCA) on the input data
-#' and returns the PCA coordinates along with additional information.
-#'
-#' @param df A data frame containing the input data. Must have 'Group' and 'SampleID' columns.
-#' @param var_names Optional vector of variable names to use for PCA. If NULL, all numeric columns except 'Group' and 'SampleID' are used.
-#' @param Group Optional vector of group names to include in the analysis. If NULL, all groups are used.
+#' @param df A data frame containing the variables for PCA analysis
+#' @param var_names Optional character vector specifying the names of variables to be used in PCA. 
+#'                 If NULL, all numeric columns except 'Group' and 'SampleID' will be used.
+#' @param Group Optional character vector specifying the levels of groups. 
+#'             If NULL (default), all groups in the data will be used.
 #'
 #' @return A list containing:
-#'   \item{coordinates}{Data frame with PCA coordinates for each sample}
-#'   \item{variance}{Vector of explained variance for each principal component}
-#'   \item{loadings}{Matrix of variable loadings}
-#'   \item{adonis}{Results of PERMANOVA analysis}
-#'
-#' @importFrom stats prcomp
-#' @importFrom vegan adonis2
+#'         - coordinates: Data frame with sample coordinates (PC1, PC2, PC3) and group information
+#'         - variance: Vector with explained variance for PC1, PC2 and PC3
+#'         - loadings: Data frame with variable loadings
+#'         - adonis: PERMANOVA test results
 #' @export
+#'
+#' @importFrom vegan rda adonis2 vegdist
+#' @importFrom dplyr select all_of
 #'
 #' @examples
 #' # Create example data
 #' set.seed(123)
 #' example_data <- data.frame(
 #'   SampleID = paste0("Sample_", 1:30),
-#'   Group = rep(c("Control", "Treatment1", "Treatment2"), each = 10),
-#'   Var1 = rnorm(30, mean = 10, sd = 2),
-#'   Var2 = rnorm(30, mean = 15, sd = 3),
-#'   Var3 = rnorm(30, mean = 5, sd = 1)
+#'   Group = rep(c("Group1", "Group2"), each = 15),
+#'   Var1 = c(rnorm(15, mean = 10, sd = 2), rnorm(15, mean = 12, sd = 2)),
+#'   Var2 = c(rnorm(15, mean = 15, sd = 3), rnorm(15, mean = 18, sd = 3)),
+#'   Var3 = c(rnorm(15, mean = 5, sd = 1), rnorm(15, mean = 7, sd = 1))
 #' )
 #' 
 #' # Run PCA analysis with all variables
@@ -41,7 +42,7 @@
 #' pca_results2 <- get_pca_coordinates(
 #'   df = example_data,
 #'   var_names = c("Var1", "Var2"),
-#'   Group = c("Control", "Treatment1")
+#'   Group = c("Group1", "Group2")
 #' )
 #'
 get_pca_coordinates <- function(df, var_names = NULL, Group = NULL) {
@@ -54,66 +55,68 @@ get_pca_coordinates <- function(df, var_names = NULL, Group = NULL) {
     stop("Data frame must contain 'Group' and 'SampleID' columns")
   }
   
-  # Check if there are at least 2 groups in the input data
-  if(length(unique(df$Group)) < 2) {
-    stop("Input data must contain at least 2 groups")
-  }
-  
   # If Group is NULL, use all groups in the data
   if(is.null(Group)) {
     Group <- unique(df$Group)
-  } else {
-    # Validate that specified groups exist in the data
-    if(!all(Group %in% df$Group)) {
-      stop("Some specified groups do not exist in the data")
-    }
-    # Check if at least 2 groups are specified
-    if(length(Group) < 2) {
-      stop("At least 2 groups must be specified")
-    }
   }
   
-  # Filter data by specified groups
+  # Filter data to include only specified groups
   df <- df[df$Group %in% Group, ]
   
-  # If var_names is NULL, use all numeric columns except Group and SampleID
+  # Check if data is empty after filtering
+  if(nrow(df) == 0) {
+    stop("No valid data after filtering groups")
+  }
+  
+  # Automatically get variable names if not specified
   if (is.null(var_names)) {
-    var_names <- colnames(df)[sapply(df, is.numeric)]
-  } else {
-    # Validate that specified variables exist in the data
-    if (!all(var_names %in% colnames(df))) {
-      stop("Some specified variables do not exist in the data")
-    }
+    var_names <- setdiff(colnames(df), c("Group", "SampleID"))
   }
   
-  # Extract numeric data for PCA
-  pca_data <- df[, var_names, drop = FALSE]
-  
-  # Check if there are any NA values
-  if (any(is.na(pca_data))) {
-    stop("Data contains NA values")
+  # Validate that selected columns are numeric
+  non_numeric_cols <- names(which(sapply(df[var_names], function(x) !is.numeric(x))))
+  if (length(non_numeric_cols) > 0) {
+    stop("The following variables are not numeric: ", paste(non_numeric_cols, collapse = ", "))
   }
   
-  # Perform PCA
-  pca_result <- prcomp(pca_data, scale. = TRUE)
+  # Perform PCA analysis
+  pca_result <- summary(vegan::rda(dplyr::select(df, dplyr::all_of(var_names)), scale=T))
   
-  # Calculate explained variance
-  explained_var <- (pca_result$sdev^2) / sum(pca_result$sdev^2) * 100
+  # Determine number of PCs available
+  n_pcs <- min(3, ncol(pca_result$sites))
   
-  # Get PCA coordinates
-  coordinates <- as.data.frame(pca_result$x)
-  coordinates$SampleID <- df$SampleID
-  coordinates$Group <- df$Group
+  # Extract sample coordinates
+  coordinates <- data.frame(
+    SampleID = df$SampleID,
+    Group = df$Group,
+    PC1 = pca_result$sites[,1]
+  )
+  if (n_pcs >= 2) coordinates$PC2 = pca_result$sites[,2]
+  if (n_pcs >= 3) coordinates$PC3 = pca_result$sites[,3]
   
-  # Perform PERMANOVA
-  dist_matrix <- dist(pca_data, method = "euclidean")
-  adonis_result <- adonis2(dist_matrix ~ Group, data = df)
+  # Extract explained variance
+  variance <- pca_result$cont$importance[2,1:n_pcs] * 100
+  names(variance) <- paste0("PC", 1:n_pcs)
   
-  # Return results
+  # Extract variable loadings
+  loadings <- data.frame(
+    Variable = rownames(pca_result$species),
+    PC1 = pca_result$species[,1]
+  )
+  if (n_pcs >= 2) loadings$PC2 = pca_result$species[,2]
+  if (n_pcs >= 3) loadings$PC3 = pca_result$species[,3]
+  
+  # Perform PERMANOVA analysis
+  adonis_result <- vegan::adonis2(
+    vegan::vegdist(dplyr::select(df, dplyr::all_of(var_names)), method="bray") ~ Group, 
+    data=df
+  )
+  
+  # Return results as a list
   return(list(
     coordinates = coordinates,
-    variance = explained_var,
-    loadings = pca_result$rotation,
+    variance = variance,
+    loadings = loadings,
     adonis = adonis_result
   ))
 }
