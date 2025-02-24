@@ -22,7 +22,7 @@
 #' @import stats
 #' @importFrom ropls opls
 #' @importFrom utils installed.packages install.packages
-#' @importFrom stats rnorm 
+#' @importFrom stats rnorm scale
 #'
 #' @return A list containing:
 #' \itemize{
@@ -139,9 +139,9 @@ draw_oplsda <- function(df, var_names = NULL, Group = NULL, group_labels = NULL,
                              scaleC = "pareto",
                              permI = 200)
   
-  plot_data <- data.frame(
-    t1 = scale(oplsda_model@scoreMN),
-    to1 = scale(oplsda_model@orthoScoreMN),
+ plot_data <- data.frame(
+    o1 = stats::scale.default(oplsda_model@scoreMN),
+    orthogonal = stats::scale.default(oplsda_model@orthoScoreMN),
     Group = Y
   )
   
@@ -153,26 +153,26 @@ draw_oplsda <- function(df, var_names = NULL, Group = NULL, group_labels = NULL,
   
   subtitle <- sprintf("R2X=%.3f  R2Y=%.3f  Q2Y=%.3f", R2X, R2Y, Q2Y)
   
-  p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = .data$t1, 
-                                              y = .data$to1, 
-                                              color = .data$Group)) +
-    ggplot2::geom_point(ggplot2::aes(shape = .data$Group), size = point_size) +
-    ggplot2::stat_ellipse(ggplot2::aes(fill = .data$Group),
-                         alpha = ellipse_alpha,
-                         level = ellipse_level,
-                         geom = "polygon") +
-    ggplot2::theme_classic() +
-    ggplot2::scale_fill_manual(values = colors) +
-    ggplot2::scale_color_manual(values = colors) +
-    ggplot2::labs(
+  p <- ggplot(plot_data, aes(x = .data$o1, 
+                            y = .data$orthogonal, 
+                            color = .data$Group)) +
+    geom_point(aes(shape = .data$Group), size = point_size) +
+    stat_ellipse(aes(fill = .data$Group),
+                 alpha = ellipse_alpha,
+                 level = ellipse_level,
+                 geom = "polygon") +
+    theme_classic() +
+    scale_fill_manual(values = colors) +
+    scale_color_manual(values = colors) +
+    labs(
       title = "OPLS-DA",
       subtitle = if(show_stats) subtitle else NULL,
-      x = paste0("t1 (", t1_weight, ")"),
-      y = paste0("to1 (", to1_weight, ")")
+      x = paste0("o1 (", t1_weight, ")"),
+      y = paste0("Orthogonal (", to1_weight, ")")
     ) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(hjust = 0.5, size = 14),
-      plot.subtitle = ggplot2::element_text(hjust = 0.5, size = 10)
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14),
+      plot.subtitle = element_text(hjust = 0.5, size = 10)
     )
   
   if(!is.null(x_limits)) {
