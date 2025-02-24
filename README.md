@@ -98,3 +98,17 @@ pca_results$variance # Explained variance
 pca_results$loadings # Variable loadings
 pca_results$adonis # PERMANOVA results
 ```
+
+
+
+## Contributing
+
+Contributions to LazyPlot are welcome! Please feel free to submit issues and pull requests.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Author
+
+[hswl1314](https://github.com/hswl1314)
