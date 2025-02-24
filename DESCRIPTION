@@ -1,6 +1,6 @@
 Package: LazyPlot
 Title: Easy Tools for Data Transformation and Plotting
-Version: 0.1.1
+Version: 0.1.2
 Authors@R: 
     person("Dr.", "Liang", 
            email = "lwlisme2022@163.com",
@@ -24,7 +24,9 @@ Imports:
     ellipse,
     grDevices,
     stats,
-    utils
+    utils,
+    ropls,
+    scales
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
