@@ -1,7 +1,5 @@
 # LazyPlot
 
-[![CRAN status](https://www.r-pkg.org/badges/version/LazyPlot)](https://CRAN.R-project.org/package=LazyPlot)
-
 LazyPlot is an R package that provides easy-to-use functions for Principal Component Analysis (PCA) visualization and data transformation. It features comprehensive PCA plots with integrated density distributions and statistical analysis.
 
 ## Features
@@ -15,7 +13,6 @@ LazyPlot is an R package that provides easy-to-use functions for Principal Compo
 ## Installation
 
 You can install LazyPlot from GitHub using:
-
 
 
 ```r
