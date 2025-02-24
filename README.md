@@ -18,10 +18,8 @@ You can install LazyPlot from GitHub using:
 
 
 
-
-# install.packages("devtools")
-
 ```r
+# install.packages("devtools")
 devtools::install_github("hswl1314/LazyPlot")
 ```
 
@@ -32,8 +30,8 @@ devtools::install_github("hswl1314/LazyPlot")
 library(LazyPlot)
 ```
 
-# Create example data
 ```r
+# Create example data
 set.seed(123)
 example_data <- data.frame(
 SampleID = paste0("Sample_", 1:30),
@@ -44,8 +42,8 @@ Var3 = c(rnorm(15, mean = 5, sd = 1), rnorm(15, mean = 7, sd = 1))
 )
 ```
 
-# Create PCA plot
 ```r
+# Create PCA plot
 draw_pca(example_data)
 ```
 
@@ -62,4 +60,41 @@ show_stats = TRUE
 )
 ```
 
+### Check PCA Ranges
+```r
+# Check PCA data ranges before plotting
+ranges <- pca_check(example_data)
+```
 
+### Data Format Transformation
+```r
+Convert from column-sample to row-sample format
+gene_data <- data.frame(
+Sample1 = c(10, 15, 20),
+Sample2 = c(12, 18, 22),
+Sample3 = c(14, 16, 24)
+)
+rownames(gene_data) <- c("Gene1", "Gene2", "Gene3")
+row_sample_data <- colSample_to_rowSample(gene_data)
+```
+
+```r
+# Convert back to column-sample format
+col_sample_data <- rowSample_to_colSample(row_sample_data)
+```
+
+## Getting PCA Coordinates
+```r
+# Get PCA coordinates and analysis results
+pca_results <- get_pca_coordinates(example_data)
+```
+
+# Get PCA coordinates and analysis results
+```r
+pca_results <- get_pca_coordinates(example_data)
+# Access results
+head(pca_results$coordinates) # Sample coordinates
+pca_results$variance # Explained variance
+pca_results$loadings # Variable loadings
+pca_results$adonis # PERMANOVA results
+```
