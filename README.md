@@ -80,14 +80,9 @@ row_sample_data <- colSample_to_rowSample(gene_data)
 col_sample_data <- rowSample_to_colSample(row_sample_data)
 ```
 
-## Getting PCA Coordinates
+## Get PCA coordinates and analysis results
 ```r
 # Get PCA coordinates and analysis results
-pca_results <- get_pca_coordinates(example_data)
-```
-
-# Get PCA coordinates and analysis results
-```r
 pca_results <- get_pca_coordinates(example_data)
 # Access results
 head(pca_results$coordinates) # Sample coordinates
